@@ -1,0 +1,156 @@
+<!doctype html>
+<html lang="pt-BR"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Plataforma de Avaliação de Ruído Urbano</title>
+<style>
+:root{--bg:#f2f5f4;--card:#fff;--fg:#14211f;--mut:#5b6b68;--line:#d5dedb;--acc:#0b7a75;--acc2:#e5622f;--ok:#1d7a3a;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#0f1716;--card:#18221f;--fg:#e4eeeb;--mut:#93a5a1;--line:#2c3b37;--acc:#3cc1b8;--acc2:#ff8a5c;--ok:#5fd38a}}
+:root[data-theme="dark"]{--bg:#0f1716;--card:#18221f;--fg:#e4eeeb;--mut:#93a5a1;--line:#2c3b37;--acc:#3cc1b8;--acc2:#ff8a5c;--ok:#5fd38a}
+*{box-sizing:border-box}html{scroll-padding-top:env(safe-area-inset-top,0px)}
+body{margin:0;background:var(--bg);color:var(--fg);font:15px/1.5 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+main{max-width:1060px;margin:0 auto;padding:18px 14px 40px}
+h1{font-size:1.5rem;margin:0 0 4px;letter-spacing:-.01em}h2{font-size:1.05rem;margin:0 0 8px}
+p.s{color:var(--mut);margin:0 0 14px;max-width:70ch}
+.card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:14px;margin-bottom:12px}
+.row{display:flex;flex-wrap:wrap;gap:12px;align-items:end}
+label{display:flex;flex-direction:column;font-size:.8rem;color:var(--mut);gap:3px}
+select,input,button{font:inherit;color:var(--fg);background:var(--bg);border:1px solid var(--line);border-radius:6px;padding:6px 9px}
+input[type=range]{padding:0;width:150px;accent-color:var(--acc)}
+button{cursor:pointer}button.p{background:var(--acc);color:#fff;border-color:var(--acc)}button:focus-visible,select:focus-visible,input:focus-visible{outline:2px solid var(--acc);outline-offset:2px}
+nav{display:flex;gap:4px;margin:6px 0 12px;border-bottom:1px solid var(--line)}
+nav button{border:0;border-bottom:3px solid transparent;border-radius:0;background:none;padding:8px 14px;color:var(--mut)}
+nav button[aria-selected=true]{color:var(--fg);border-color:var(--acc);font-weight:600}
+section{display:none}section.on{display:block}
+canvas{width:100%;display:block;border-radius:6px}
+table{border-collapse:collapse;width:100%;font-size:.88rem}th,td{padding:6px 8px;border-bottom:1px solid var(--line);text-align:right}th:first-child,td:first-child{text-align:left}
+.wrap{overflow-x:auto}.big{font-size:3rem;font-weight:700;line-height:1;font-variant-numeric:tabular-nums}
+.g2{display:grid;grid-template-columns:1fr 1fr;gap:12px}@media(max-width:760px){.g2{grid-template-columns:1fr}}
+.leg{display:flex;flex-wrap:wrap;gap:6px;font-size:.75rem;color:var(--mut);margin-top:6px}.leg i{display:inline-block;width:12px;height:12px;border-radius:2px;vertical-align:-2px;margin-right:3px}
+.bar{height:14px;border-radius:3px;background:var(--acc)}.best{color:var(--ok);font-weight:700}
+small,.m{color:var(--mut);font-size:.8rem}ul{margin:6px 0;padding-left:18px}
+</style></head><body><main>
+<h1>Avaliação de mapas de ruído urbano</h1>
+<p class="s">Plataforma de demonstração do pipeline proposto: coleta participativa, simulação CNOSSOS-EU simplificada, modelo híbrido com aprendizado de máquina e comparação com a referência. A cidade é <b>sintética</b> (28×18 células de ~15 m), então os resultados validam o método, não um bairro real.</p>
+
+<div class="card"><div class="row">
+<label>Período<select id="per"><option value="day">Diurno (limite 65 dB)</option><option value="night">Noturno (limite 55 dB)</option></select></label>
+<label>Medições participativas: <b id="mv">50</b><input type="range" id="m" min="10" max="200" step="5" value="50"></label>
+<label>Erro do microfone σ: <b id="sv">3.0</b> dB<input type="range" id="sig" min="0" max="8" step="0.5" value="3"></label>
+<label><span><input type="checkbox" id="usr" checked> incluir minhas medições</span></label>
+<button id="new">Sortear nova amostra</button></div></div>
+
+<nav role="tablist"><button role="tab" data-t="t1" aria-selected="true">Coletar</button><button role="tab" data-t="t2" aria-selected="false">Mapa 2D e 3D</button><button role="tab" data-t="t3" aria-selected="false">Avaliação</button></nav>
+
+<section id="t1" class="on"><div class="g2">
+<div class="card"><h2>Medição com o microfone</h2>
+<p class="m">O áudio nunca é gravado nem enviado: só o nível em dB(A) é calculado no aparelho. Sem calibração o valor é apenas indicativo.</p>
+<div class="big"><span id="la">--</span> <small>dB(A)</small></div>
+<p class="m">Leq da sessão: <b id="leq">--</b> dB · duração <b id="dur">0</b> s</p>
+<canvas id="live" height="90"></canvas>
+<div class="row" style="margin-top:10px"><button class="p" id="mic">Iniciar microfone</button><button id="demo">Modo demonstração</button><button id="stop">Parar</button></div>
+<div class="row" style="margin-top:10px"><label>Offset dBFS→dB SPL<input id="off" type="number" value="100" style="width:90px"></label>
+<label>Nível lido num sonômetro<input id="refv" type="number" placeholder="ex.: 62" style="width:110px"></label><button id="cal">Calibrar</button></div>
+<p class="m" id="err"></p></div>
+<div class="card"><h2>Salvar na plataforma</h2>
+<p class="m">Célula escolhida no mapa: <b id="cellq">--</b> (clique no mapa 2D para trocar)</p>
+<div class="row"><label>Incômodo percebido<select id="ann"><option>1</option><option>2</option><option selected>3</option><option>4</option><option>5</option></select></label><button class="p" id="save">Salvar medição</button><button id="clr">Apagar todas</button></div>
+<div class="wrap"><table id="ul"></table></div></div></div></section>
+
+<section id="t2"><div class="card"><div class="row">
+<label>Camada<select id="lay"><option value="ref">Referência oficial (simulada)</option><option value="A">A · Simulação CNOSSOS-EU</option><option value="B">B · Interpolação das medições</option><option value="C" selected>C · Híbrido (simulação + ML)</option><option value="err">Erro do híbrido (C − referência)</option></select></label>
+<label>Vista<select id="view"><option value="2d">2D</option><option value="3d">3D (altura = edificações)</option></select></label>
+<label><span><input type="checkbox" id="shm" checked> mostrar medições</span></label></div>
+<canvas id="map" style="margin-top:10px;cursor:crosshair"></canvas><div class="leg" id="leg"></div></div>
+<div class="card"><h2>Célula selecionada</h2><div id="info" class="m"></div></div></section>
+
+<section id="t3"><div class="card"><h2>Comparação com a referência</h2>
+<p class="m">Métricas calculadas só nas células <b>não medidas</b> (<span id="nt"></span> células), para não premiar o modelo por decorar os pontos de treino.</p>
+<div class="wrap"><table id="tb"></table></div><div id="bars" style="margin-top:10px"></div>
+<p class="m" id="beta"></p></div>
+<div class="g2"><div class="card"><div class="row" style="margin-bottom:6px"><h2 style="margin:0">Previsto × referência</h2><label>Cenário<select id="sc"><option value="0">A</option><option value="1">B</option><option value="2" selected>C</option></select></label></div><canvas id="scat" height="300"></canvas></div>
+<div class="card"><h2>RMSE × número de medições</h2><canvas id="curve" height="300"></canvas><div class="leg"><span><i style="background:#8a8f98"></i>A</span><span><i style="background:#e5622f"></i>B</span><span><i style="background:#0b9a93"></i>C</span></div></div></div>
+<div class="card"><h2>Hipóteses do protocolo</h2><ul id="hyp"></ul></div></section>
+
+<script>
+const $=s=>document.querySelector(s),W=28,H=18,N=W*H;
+function rng(s){return()=>{s|=0;s=s+0x6D2B79F5|0;let t=Math.imul(s^s>>>15,1|s);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296}}
+const gz=r=>Math.sqrt(-2*Math.log(r()||1e-9))*Math.cos(6.2832*r());
+const P={day:{dE:0,hs:4,lim:65},night:{dE:-8,hs:7,lim:55}},roads=[['h',5,72],['h',13,66],['v',8,66],['v',20,72]],hot=[[4,9],[15,3],[23,15]];
+const st={per:'day',m:50,sig:3,seed:1,usr:true,sel:8*W+12,lay:'C',view:'2d',shm:true};
+let user=[];try{user=JSON.parse(localStorage.getItem('rm')||'[]')}catch(e){}
+const R=rng(7),dRoad=new Float32Array(N),bld=new Float32Array(N),hd=new Float32Array(N),WL={};
+const gs=[...Array(6)].map(()=>[R()*W,R()*H,3+R()*4]);
+for(let y=0;y<H;y++)for(let x=0;x<W;x++){const i=y*W+x;let d=99;for(const r of roads)d=Math.min(d,Math.abs(r[0]=='h'?y-r[1]:x-r[1]));dRoad[i]=d;
+let b=.1+R()*.2;for(const g of gs)b+=.5*Math.exp(-((x-g[0])**2+(y-g[1])**2)/(2*g[2]));bld[i]=d==0?0:Math.min(1,b);
+hd[i]=Math.min(...hot.map(h=>Math.hypot(x-h[0],y-h[1])))}
+const fx=[...Array(N)].map(()=>gz(R())*.8);
+for(const k in P){const sim=new Float32Array(N),tr=new Float32Array(N);for(let y=0;y<H;y++)for(let x=0;x<W;x++){const i=y*W+x;let e=1e4;
+for(const r of roads){const dd=r[0]=='h'?Math.abs(y-r[1]):Math.abs(x-r[1]);e+=Math.pow(10,(r[2]+P[k].dE-10*Math.log10(1+(dd*.75)**2))/10)}
+sim[i]=10*Math.log10(e);let h=0;for(const q of hot)h+=Math.exp(-((x-q[0])**2+(y-q[1])**2)/6);tr[i]=sim[i]-5*bld[i]+1.5+P[k].hs*h+fx[i]}WL[k]={sim,tr}}
+let keys=[],nm=[];function mk(){const r=rng(st.seed*977+3);keys=[...Array(N).keys()].map(i=>[Math.pow(r(),1/(1+3*Math.exp(-dRoad[i]/3))),i]).sort((a,b)=>b[0]-a[0]).map(a=>a[1]);const q=rng(st.seed*31+5);nm=[...Array(N)].map(()=>gz(q))}
+function solve(A,b){const n=3;for(let i=0;i<n;i++)A[i][i]+=1e-6;for(let i=0;i<n;i++){let p=i;for(let j=i+1;j<n;j++)if(Math.abs(A[j][i])>Math.abs(A[p][i]))p=j;[A[i],A[p]]=[A[p],A[i]];[b[i],b[p]]=[b[p],b[i]];for(let j=i+1;j<n;j++){const f=A[j][i]/A[i][i];for(let c=i;c<n;c++)A[j][c]-=f*A[i][c];b[j]-=f*b[i]}}const x=[0,0,0];for(let i=n-1;i>=0;i--){let s=b[i];for(let c=i+1;c<n;c++)s-=A[i][c]*x[c];x[i]=s/A[i][i]}return x}
+function idw(i,ids,v){const x=i%W,y=i/W|0,a=ids.map((j,k)=>[(x-j%W)**2+(y-(j/W|0))**2,k]).sort((p,q)=>p[0]-q[0]).slice(0,6);let s=0,w=0;for(const[d,k]of a){const c=1/(d+.5);s+=c*v[k];w+=c}return s/w}
+function run(m){const{sim,tr:truth}=WL[st.per],T=new Map();for(const i of keys.slice(0,m))T.set(i,truth[i]+st.sig*nm[i]);
+if(st.usr)for(const u of user)if(u.per==st.per)T.set(u.cell,u.leq);const ids=[...T.keys()],v=ids.map(i=>T.get(i)),A=[[0,0,0],[0,0,0],[0,0,0]],b=[0,0,0];
+ids.forEach((i,k)=>{const x=[1,sim[i],bld[i]];for(let a=0;a<3;a++){b[a]+=x[a]*v[k];for(let c=0;c<3;c++)A[a][c]+=x[a]*x[c]}});
+const be=solve(A,b),f=i=>be[0]+be[1]*sim[i]+be[2]*bld[i],res=ids.map((i,k)=>v[k]-f(i)),B=new Float32Array(N),C=new Float32Array(N);
+for(let i=0;i<N;i++){B[i]=idw(i,ids,v);C[i]=f(i)+idw(i,ids,res)}return{T,A:sim,B,C,be,truth}}
+function met(p,r,sel){const lim=P[st.per].lim;let n=0,s=0,a=0,q=0,cl=0,cf=0,sm=0;const I=[];for(let i=0;i<N;i++){if(r.T.has(i)||(sel&&!sel(i)))continue;I.push(i);const e=p[i]-r.truth[i];n++;s+=e;a+=Math.abs(e);q+=e*e;sm+=r.truth[i];if(Math.floor(p[i]/5)==Math.floor(r.truth[i]/5))cl++;if((p[i]>=lim)==(r.truth[i]>=lim))cf++}
+let t=0;for(const i of I)t+=(r.truth[i]-sm/n)**2;return{n,bias:s/n,mae:a/n,rmse:Math.sqrt(q/n),r2:1-q/t,cls:cl/n,cf:cf/n}}
+const PAL=['#3b6fb6','#4aa3b8','#5cb97a','#a6d05a','#f1e04a','#f2a63a','#e5622f','#c4272f','#7d1d6b'],hx=c=>[1,3,5].map(i=>parseInt(c.slice(i,i+2),16));
+const lc=v=>PAL[Math.max(0,Math.min(8,Math.floor((v-40)/5)))];
+function ec(e){const t=Math.max(-1,Math.min(1,e/8)),a=t<0?[59,111,182]:[196,39,47],g=[200,200,200];return'rgb('+g.map((c,k)=>Math.round(c+(a[k]-c)*Math.abs(t))).join()+')'}
+const css=v=>getComputedStyle(document.documentElement).getPropertyValue(v).trim();
+function cv(el,h){const d=devicePixelRatio||1,w=el.clientWidth;el.width=w*d;el.height=h*d;el.style.height=h+'px';const c=el.getContext('2d');c.setTransform(d,0,0,d,0,0);c.clearRect(0,0,w,h);return[c,w,h]}
+let cur=null;const val=(l,r,i)=>l=='ref'?r.truth[i]:l=='err'?r.C[i]-r.truth[i]:r[l][i];
+function drawMap(){cur=run(st.m);const r=cur,el=$('#map'),w=el.clientWidth,l=st.lay,col=i=>l=='err'?ec(val(l,r,i)):lc(val(l,r,i));
+if(st.view=='2d'){const[c]=cv(el,w*H/W),s=w/W;for(let i=0;i<N;i++){c.fillStyle=col(i);c.fillRect((i%W)*s,(i/W|0)*s,s+.5,s+.5)}
+c.strokeStyle='rgba(0,0,0,.35)';c.lineWidth=1;for(const k of r.T.keys())if(st.shm){c.beginPath();c.arc((k%W+.5)*s,((k/W|0)+.5)*s,s*.22,0,7);c.stroke()}
+c.strokeStyle='#fff';c.lineWidth=2.5;c.strokeRect((st.sel%W)*s,(st.sel/W|0)*s,s,s);c.strokeStyle='#000';c.lineWidth=1;c.strokeRect((st.sel%W)*s,(st.sel/W|0)*s,s,s)}
+else{const tw=2*w/(W+H)*.98,th=tw/2,[c]=cv(el,(W+H)*th/2+tw+10),ox=H*tw/2+w*.01,oy=tw,sh=(rgb,f)=>'rgb('+(rgb.match(/\d+/g).map(n=>Math.round(n*f))).join()+')';
+for(let s=0;s<W+H-1;s++)for(let x=Math.max(0,s-H+1);x<=Math.min(W-1,s);x++){const y=s-x,i=y*W+x,sx=ox+(x-y)*tw/2,sy=oy+(x+y)*th/2,hh=(bld[i]?.15+bld[i]*.85:.05)*tw*.9;let f=col(i);if(f[0]=='#')f='rgb('+hx(f).join()+')';
+const q=(a)=>{c.beginPath();a.forEach((p,k)=>k?c.lineTo(p[0],p[1]):c.moveTo(p[0],p[1]));c.closePath();c.fill()};
+c.fillStyle=sh(f,.7);q([[sx-tw/2,sy+th/2-hh],[sx,sy+th-hh],[sx,sy+th],[sx-tw/2,sy+th/2]]);c.fillStyle=sh(f,.55);q([[sx+tw/2,sy+th/2-hh],[sx,sy+th-hh],[sx,sy+th],[sx+tw/2,sy+th/2]]);
+c.fillStyle=f;q([[sx,sy-hh],[sx+tw/2,sy+th/2-hh],[sx,sy+th-hh],[sx-tw/2,sy+th/2-hh]]);
+if(i==st.sel){c.strokeStyle='#fff';c.lineWidth=2;c.stroke()}}}
+$('#leg').innerHTML=l=='err'?'<span><i style="background:'+ec(-8)+'"></i>subestima</span><span><i style="background:'+ec(0)+'"></i>0 dB</span><span><i style="background:'+ec(8)+'"></i>superestima</span>':PAL.map((p,k)=>'<span><i style="background:'+p+'"></i>'+(k==0?'&lt;45':k==8?'≥80':40+k*5+'–'+(45+k*5))+'</span>').join('')+'<span>dB(A)</span>';
+const i=st.sel;$('#info').innerHTML='Célula ('+i%W+', '+(i/W|0)+') · distância à via principal: '+(dRoad[i]*15)+' m · densidade de edificações: '+bld[i].toFixed(2)+'<br>Referência <b>'+r.truth[i].toFixed(1)+'</b> dB · A '+r.A[i].toFixed(1)+' · B '+r.B[i].toFixed(1)+' · C '+r.C[i].toFixed(1)+(r.T.has(i)?' · <b>célula medida</b>':'');$('#cellq').textContent='('+i%W+', '+(i/W|0)+')'}
+$('#map').addEventListener('click',e=>{if(st.view!='2d')return;const b=e.target.getBoundingClientRect(),x=Math.floor((e.clientX-b.left)/b.width*W),y=Math.floor((e.clientY-b.top)/b.height*H);st.sel=y*W+x;refresh()});
+const C3='#0b9a93',names=['A · Simulação CNOSSOS-EU','B · Interpolação das medições','C · Híbrido (simulação + ML)'];
+function drawEval(){const r=cur||run(st.m),pr=[r.A,r.B,r.C],ms=pr.map(p=>met(p,r)),mr=Math.min(...ms.map(m=>m.rmse)),mx=Math.max(...ms.map(m=>m.rmse));$('#nt').textContent=ms[0].n;
+$('#tb').innerHTML='<tr><th>Cenário</th><th>Viés</th><th>MAE</th><th>RMSE</th><th>R²</th><th>Classe 5 dB</th><th>Conformidade</th></tr>'+ms.map((m,k)=>'<tr><td>'+names[k]+'</td><td>'+m.bias.toFixed(2)+'</td><td>'+m.mae.toFixed(2)+'</td><td class="'+(m.rmse==mr?'best':'')+'">'+m.rmse.toFixed(2)+'</td><td>'+m.r2.toFixed(2)+'</td><td>'+(m.cls*100).toFixed(0)+'%</td><td>'+(m.cf*100).toFixed(0)+'%</td></tr>').join('');
+$('#bars').innerHTML=ms.map((m,k)=>'<div class="m">'+names[k]+' · RMSE '+m.rmse.toFixed(2)+' dB</div><div class="bar" style="width:'+(m.rmse/mx*100)+'%;background:'+['#8a8f98','#e5622f',C3][k]+'"></div>').join('');
+$('#beta').textContent='Modelo C: L = '+r.be[0].toFixed(1)+' + '+r.be[1].toFixed(2)+'·L_sim '+(r.be[2]<0?'− ':'+ ')+Math.abs(r.be[2]).toFixed(1)+'·edificações, depois interpolação dos resíduos (IDW, 6 vizinhos).';
+const k=+$('#sc').value,[c,w,h]=cv($('#scat'),300),p=pr[k],fg=css('--fg'),mu=css('--mut'),X=v=>34+(v-35)/50*(w-44),Y=v=>h-26-(v-35)/50*(h-36);
+c.strokeStyle=mu;c.fillStyle=mu;c.font='11px system-ui';c.beginPath();c.moveTo(34,h-26);c.lineTo(w-8,h-26);c.moveTo(34,10);c.lineTo(34,h-26);c.stroke();for(let v=40;v<=80;v+=10){c.fillText(v,X(v)-8,h-12);c.fillText(v,6,Y(v)+4)}
+c.setLineDash([4,3]);c.beginPath();c.moveTo(X(35),Y(35));c.lineTo(X(85),Y(85));c.stroke();c.setLineDash([]);c.fillText('referência (dB)',w/2-30,h-1);
+c.globalAlpha=.6;for(let i=0;i<N;i++){if(r.T.has(i))continue;c.fillStyle=['#8a8f98','#e5622f',C3][k];c.beginPath();c.arc(X(r.truth[i]),Y(p[i]),2.6,0,7);c.fill()}c.globalAlpha=1;
+const MS=[10,20,40,80,120,200],cu=MS.map(m=>{const q=run(m);return[met(q.A,q).rmse,met(q.B,q).rmse,met(q.C,q).rmse]});
+const[d,w2,h2]=cv($('#curve'),300),top=Math.max(...cu.flat())*1.1,XX=j=>40+j/5*(w2-56),YY=v=>h2-28-v/top*(h2-40);d.strokeStyle=mu;d.fillStyle=mu;d.font='11px system-ui';d.beginPath();d.moveTo(40,h2-28);d.lineTo(w2-8,h2-28);d.moveTo(40,10);d.lineTo(40,h2-28);d.stroke();
+MS.forEach((m,j)=>d.fillText(m,XX(j)-8,h2-14));for(let v=0;v<=top;v+=2)d.fillText(v,12,YY(v)+4);d.fillText('nº de medições',w2/2-35,h2-1);
+['#8a8f98','#e5622f',C3].forEach((co,s)=>{d.strokeStyle=co;d.lineWidth=2;d.beginPath();cu.forEach((u,j)=>j?d.lineTo(XX(j),YY(u[s])):d.moveTo(XX(j),YY(u[s])));d.stroke()});
+const nh=met(r.C,r,i=>hd[i]<=3),fh=met(r.C,r,i=>hd[i]>3),ok=b=>b?'<b class="best">confirmada</b>':'<b style="color:var(--acc2)">não confirmada</b>';
+$('#hyp').innerHTML='<li><b>H1</b> · o híbrido erra menos que A e B isolados: '+ok(ms[2].rmse<Math.min(ms[0].rmse,ms[1].rmse))+' (RMSE '+ms[2].rmse.toFixed(2)+' contra '+ms[0].rmse.toFixed(2)+' e '+ms[1].rmse.toFixed(2)+').</li><li><b>H2</b> · o erro cai com mais medições: '+ok(cu[5][2]<cu[0][2])+' (C vai de '+cu[0][2].toFixed(2)+' dB com 10 pontos a '+cu[5][2].toFixed(2)+' dB com 200).</li><li><b>H3</b> · erro maior perto de fontes não viárias (bares, obras): '+ok(nh.rmse>fh.rmse)+' (RMSE '+nh.rmse.toFixed(2)+' perto e '+fh.rmse.toFixed(2)+' longe).</li>'}
+function refresh(){drawMap();if($('#t3').classList.contains('on'))drawEval();$('#mv').textContent=st.m;$('#sv').textContent=st.sig.toFixed(1)}
+/* coleta */
+let ac,an,fb,wts,tm,arr=[],t0=0,demo=0,mode='';
+const Af=f=>{const a=12194**2*f**4/((f*f+20.6**2)*Math.sqrt((f*f+107.7**2)*(f*f+737.9**2))*(f*f+12194**2));return Math.pow(10,(20*Math.log10(a)+2)/10)};
+function tick(){let la;if(demo){demo+=(Math.random()-.5)*1.6;demo=Math.max(35,Math.min(90,demo));la=demo}else{an.getFloatFrequencyData(fb);let s=0;for(let k=1;k<fb.length;k++)s+=Math.pow(10,fb[k]/10)*wts[k];la=10*Math.log10(s)+ +$('#off').value}
+arr.push(la);$('#la').textContent=la.toFixed(0);const e=10*Math.log10(arr.reduce((a,v)=>a+Math.pow(10,v/10),0)/arr.length);$('#leq').textContent=e.toFixed(1);$('#dur').textContent=Math.round((Date.now()-t0)/1000);drawLive()}
+function drawLive(){const[c,w,h]=cv($('#live'),90),a=arr.slice(-80);c.strokeStyle=css('--acc');c.lineWidth=2;c.beginPath();a.forEach((v,k)=>{const x=k/79*w,y=h-(v-30)/70*h;k?c.lineTo(x,y):c.moveTo(x,y)});c.stroke()}
+function begin(){stop();arr=[];t0=Date.now();tm=setInterval(tick,250)}
+function stop(){clearInterval(tm);if(ac){ac.close();ac=null}}
+$('#mic').onclick=async()=>{$('#err').textContent='';try{const s=await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:false,noiseSuppression:false,autoGainControl:false}});stop();ac=new AudioContext();an=ac.createAnalyser();an.fftSize=4096;an.smoothingTimeConstant=0;ac.createMediaStreamSource(s).connect(an);fb=new Float32Array(an.frequencyBinCount);wts=Array.from(fb,(_,k)=>Af(k*ac.sampleRate/4096));demo=0;begin()}catch(e){$('#err').textContent='Não foi possível usar o microfone ('+(e.name||'erro')+'). Permita o acesso nas configurações do navegador ou use o modo demonstração.'}};
+$('#demo').onclick=()=>{demo=WL[st.per].tr[st.sel];begin()};$('#stop').onclick=stop;
+$('#cal').onclick=()=>{const v=+$('#refv').value;if(!arr.length||!v){$('#err').textContent='Meça por alguns segundos e informe o nível do sonômetro.';return}$('#off').value=(+$('#off').value+v-+$('#leq').textContent).toFixed(1);arr=[];t0=Date.now()};
+function ulist(){try{localStorage.setItem('rm',JSON.stringify(user))}catch(e){}$('#ul').innerHTML=user.length?'<tr><th>Célula</th><th>Período</th><th>Leq</th><th>Incômodo</th></tr>'+user.map(u=>'<tr><td>('+u.cell%W+', '+(u.cell/W|0)+')</td><td>'+(u.per=='day'?'dia':'noite')+'</td><td>'+u.leq.toFixed(1)+'</td><td>'+u.an+'</td></tr>').join(''):'<tr><td class="m">Nenhuma medição salva. Meça ou use a demonstração e clique em Salvar.</td></tr>'}
+$('#save').onclick=()=>{if(!arr.length){$('#err').textContent='Faça uma medição antes de salvar.';return}user=user.filter(u=>!(u.cell==st.sel&&u.per==st.per));user.push({cell:st.sel,per:st.per,leq:+$('#leq').textContent,an:$('#ann').value});ulist();refresh()};
+$('#clr').onclick=()=>{user=[];ulist();refresh()};
+/* ui */
+document.querySelectorAll('nav button').forEach(b=>b.onclick=()=>{document.querySelectorAll('nav button').forEach(x=>x.setAttribute('aria-selected',x==b));document.querySelectorAll('section').forEach(s=>s.classList.toggle('on',s.id==b.dataset.t));refresh()});
+$('#per').onchange=e=>{st.per=e.target.value;refresh()};$('#m').oninput=e=>{st.m=+e.target.value;refresh()};$('#sig').oninput=e=>{st.sig=+e.target.value;refresh()};
+$('#usr').onchange=e=>{st.usr=e.target.checked;refresh()};$('#new').onclick=()=>{st.seed++;mk();refresh()};
+$('#lay').onchange=e=>{st.lay=e.target.value;refresh()};$('#view').onchange=e=>{st.view=e.target.value;refresh()};$('#shm').onchange=e=>{st.shm=e.target.checked;refresh()};$('#sc').onchange=drawEval;
+addEventListener('resize',refresh);matchMedia('(prefers-color-scheme:dark)').addEventListener('change',refresh);
+mk();ulist();refresh();
+</script></main></body></html>
